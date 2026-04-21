@@ -635,7 +635,10 @@ public final class ModuleKeys {
             name,
             packageAssetUri.getPackageUri().getDisplayName());
       }
-      return dependency.getPackageUri().toPackageAssetUri(path).getUri();
+      // Encode glob subpattern chars ({ and }) so the path is a valid URI.
+      // The glob engine decodes them back when expanding the pattern.
+      var encodedPath = IoUtils.encodeGlobCharsForUri(path);
+      return dependency.getPackageUri().toPackageAssetUri(encodedPath).getUri();
     }
   }
 
