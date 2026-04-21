@@ -364,6 +364,28 @@ public final class IoUtils {
     return Pair.of(importPath.substring(1, idx), importPath.substring(idx));
   }
 
+  /**
+   * Encodes glob subpattern characters ({@code {} and {@code }}) in a dependency path so they are
+   * safe to embed in a URI string. Other glob wildcards ({@code *}, {@code ?}, {@code [}, {@code
+   * ]}) are left as-is because they are already valid URI path characters.
+   *
+   * <p>Dependency notation URIs are paths, not full URIs, so braces must be percent-encoded before
+   * being passed to {@link java.net.URI} constructors that perform RFC 2396 validation.
+   */
+  public static String encodeGlobCharsForUri(String path) {
+    return path.replace("{", "%7B").replace("}", "%7D");
+  }
+
+  /**
+   * Decodes glob subpattern characters that were encoded by {@link #encodeGlobCharsForUri}. This
+   * restores {@code %7B} and {@code %7D} back to {@code {} and {@code }} so the glob engine can
+   * interpret them as subpattern delimiters.
+   */
+  public static String decodeGlobCharsFromUri(String path) {
+    // Case-insensitive to handle both %7B/%7b and %7D/%7d
+    return path.replace("%7B", "{").replace("%7b", "{").replace("%7D", "}").replace("%7d", "}");
+  }
+
   private static URI resolveProjectDependency(ModuleKey moduleKey, String notation)
       throws IOException, ExternalReaderProcessException {
     var parsed = parseDependencyNotation(notation);
@@ -381,7 +403,10 @@ public final class IoUtils {
     }
     var dependency = projectDependenciesManager.getDependencies().get(name);
     if (dependency != null) {
-      return dependency.getPackageUri().toPackageAssetUri(path).getUri();
+      // Encode glob subpattern chars ({ and }) so the path is a valid URI.
+      // The glob engine decodes them back when expanding the pattern.
+      var encodedPath = encodeGlobCharsForUri(path);
+      return dependency.getPackageUri().toPackageAssetUri(encodedPath).getUri();
     }
     throw new PackageLoadError("cannotFindDependencyInProject", name);
   }
